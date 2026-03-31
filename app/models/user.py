@@ -1,21 +1,30 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, DateTime
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import String, DateTime, Uuid
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-Base = declarative_base()
 
+class Base(DeclarativeBase):
+    pass
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    login = Column(String, nullable=False, unique=True)
-    password = Column(String, nullable=False)
-    project_id = Column(UUID(as_uuid=True), nullable=False)
-    env = Column(String, nullable=False)
-    domain = Column(String, nullable=False)
-    locktime = Column(DateTime, nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, default=uuid.uuid4
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
+
+    login: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    password: Mapped[str] = mapped_column(String, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    env: Mapped[str] = mapped_column(String, nullable=False)
+    domain: Mapped[str] = mapped_column(String, nullable=False)
+
+    locktime: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
+    )
