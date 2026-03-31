@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
@@ -52,7 +52,7 @@ async def lock_user(db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="no available users")
 
-    user.locktime = datetime.utcnow()
+    user.locktime = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(user)
     return user
