@@ -50,7 +50,7 @@ async def lock_user(db: AsyncSession = Depends(get_db)):
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=404, detail="нет свободных пользователей")
+        raise HTTPException(status_code=404, detail="no available users")
 
     user.locktime = datetime.utcnow()
     await db.commit()
@@ -62,4 +62,4 @@ async def lock_user(db: AsyncSession = Depends(get_db)):
 async def free_users(db: AsyncSession = Depends(get_db)):
     await db.execute(update(User).values(locktime=None))
     await db.commit()
-    return {"detail": "все пользователи разблокированы"}
+    return {"detail": "all users unlocked"}
