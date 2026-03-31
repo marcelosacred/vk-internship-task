@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 
-app = FastAPI(title="Botfarm")
+from app.api.routes import router
+
+app = FastAPI(title="Bot Farm API", description="VK Internship Task")
+
+app.include_router(router, prefix="/api/v1")
 
 
-@app.get("/")
-async def root():
-    return {"message": "botfarm service"}
+@app.get("/health")
+async def health_check():
+    """проверка работоспособности сервиса"""
+    return {"status": "ok"}
