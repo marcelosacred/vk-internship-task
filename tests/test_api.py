@@ -81,4 +81,5 @@ async def test_free_users(client, user_data):
 async def test_create_duplicate_user(client, user_data):
     await client.post("/api/v1/users", json=user_data)
     resp = await client.post("/api/v1/users", json=user_data)
-    assert resp.status_code == 500 or resp.status_code == 400
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "login already exists"

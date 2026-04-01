@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.hash import bcrypt
 
@@ -29,7 +30,11 @@ async def create_user(user_data: UserCreate, db: AsyncSession = Depends(get_db))
         domain=user_data.domain,
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="login already exists")
     await db.refresh(user)
     return user
 
