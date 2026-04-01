@@ -1,14 +1,14 @@
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from passlib.hash import bcrypt
 
 from app.db.database import get_db
-from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse
+from app.services.user import (
+    create_user as create_user_service,
+    free_users as free_users_service,
+    get_users as get_users_service,
+    lock_user as lock_user_service,
+)
 
 router = APIRouter()
 
@@ -20,51 +20,30 @@ router = APIRouter()
 
 @router.post("/users", response_model=UserResponse, status_code=201)
 async def create_user(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
-    hashed_password = bcrypt.hash(user_data.password)
-
-    user = User(
-        login=user_data.login,
-        password=hashed_password,
-        project_id=user_data.project_id,
-        env=user_data.env,
-        domain=user_data.domain,
-    )
-    db.add(user)
     try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail="login already exists")
-    await db.refresh(user)
+        user = await create_user_service(db, user_data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     return user
 
 
 @router.get("/users", response_model=list[UserResponse])
 async def get_users(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User))
-    users = result.scalars().all()
-    return users
+    return await get_users_service(db)
 
 
 @router.post("/users/lock", response_model=UserResponse)
 async def lock_user(db: AsyncSession = Depends(get_db)):
-    # ищем первого незанятого юзера
-    result = await db.execute(
-        select(User).where(User.locktime.is_(None)).limit(1)
-    )
-    user = result.scalar_one_or_none()
+    try:
+        user = await lock_user_service(db)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    if not user:
-        raise HTTPException(status_code=404, detail="no available users")
-
-    user.locktime = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(user)
     return user
 
 
 @router.post("/users/free")
 async def free_users(db: AsyncSession = Depends(get_db)):
-    await db.execute(update(User).values(locktime=None))
-    await db.commit()
+    await free_users_service(db)
     return {"detail": "all users unlocked"}

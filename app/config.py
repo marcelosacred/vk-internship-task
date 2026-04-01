@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     db_name: str = "botfarm"
     db_user: str = "postgres"
     db_password: str = "postgres"
+    user_lock_ttl_seconds: int = 300
 
     @property
     def db_url(self) -> str:
