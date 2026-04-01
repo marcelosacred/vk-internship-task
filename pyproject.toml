@@ -3,3 +3,10 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-q -ra"
 pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
