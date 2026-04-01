@@ -13,7 +13,7 @@ from app.schemas.user import UserCreate
 def utc_now() -> datetime:
 	"""вернуть текущее время в UTC для удобства тестирования"""
 
-	return datetime.now(timezone.utc)
+	return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
