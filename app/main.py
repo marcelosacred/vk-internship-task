@@ -19,7 +19,7 @@ app = FastAPI(
     lifespan=lifespan,
 
 )
-app.state.startup_complete = True
+app.state.startup_complete = False
 
 app.include_router(health_router)
 app.include_router(router, prefix="/api/v1")
