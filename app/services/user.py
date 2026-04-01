@@ -12,7 +12,6 @@ from app.schemas.user import UserCreate
 
 def utc_now() -> datetime:
 	"""вернуть текущее время в UTC для удобства тестирования"""
-
 	return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
