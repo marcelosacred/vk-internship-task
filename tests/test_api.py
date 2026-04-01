@@ -14,6 +14,20 @@ from app.models.user import User
 # - блокировка при отсутствии свободных юзеров - 404
 # - разблокировка юзеров - проверка, что после free юзер снова доступен
 # - создание дубликата юзера - 400 или 500
+# - создание юзера с невалидными enum полями - 422
+# - блокировка юзера, когда предыдущая блокировка уже истекла - долженся заблокировать тот же юзер, что и в первый раз
+# - получение токена с неверными данными - 401
+# - доступ к защищенным эндпоинтам без токена - 401
+
+async def get_auth_headers(client):
+    resp = await client.post(
+        "/api/v1/auth/token",
+        json={"username": "admin", "password": "admin"},
+    )
+    assert resp.status_code == 200
+    token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
 
 @pytest.mark.asyncio
 async def test_health(client):
@@ -24,7 +38,8 @@ async def test_health(client):
 
 @pytest.mark.asyncio
 async def test_create_user(client, user_data):
-    resp = await client.post("/api/v1/users", json=user_data)
+    headers = await get_auth_headers(client)
+    resp = await client.post("/api/v1/users", json=user_data, headers=headers)
     assert resp.status_code == 201
     data = resp.json()
     assert data["login"] == user_data["login"]
@@ -34,15 +49,17 @@ async def test_create_user(client, user_data):
 
 @pytest.mark.asyncio
 async def test_get_users_empty(client):
-    resp = await client.get("/api/v1/users")
+    headers = await get_auth_headers(client)
+    resp = await client.get("/api/v1/users", headers=headers)
     assert resp.status_code == 200
     assert resp.json() == []
 
 
 @pytest.mark.asyncio
 async def test_get_users_after_create(client, user_data):
-    await client.post("/api/v1/users", json=user_data)
-    resp = await client.get("/api/v1/users")
+    headers = await get_auth_headers(client)
+    await client.post("/api/v1/users", json=user_data, headers=headers)
+    resp = await client.get("/api/v1/users", headers=headers)
     assert resp.status_code == 200
     users = resp.json()
     assert len(users) == 1
@@ -51,10 +68,11 @@ async def test_get_users_after_create(client, user_data):
 
 @pytest.mark.asyncio
 async def test_lock_user(client, user_data):
-    await client.post("/api/v1/users", json=user_data)
+    headers = await get_auth_headers(client)
+    await client.post("/api/v1/users", json=user_data, headers=headers)
 
     before_lock = datetime.now(timezone.utc).replace(tzinfo=None)
-    resp = await client.post("/api/v1/users/lock")
+    resp = await client.post("/api/v1/users/lock", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["locktime"] is not None
@@ -67,32 +85,35 @@ async def test_lock_user(client, user_data):
 
 @pytest.mark.asyncio
 async def test_lock_no_free_users(client, user_data):
-    await client.post("/api/v1/users", json=user_data)
-    await client.post("/api/v1/users/lock")
+    headers = await get_auth_headers(client)
+    await client.post("/api/v1/users", json=user_data, headers=headers)
+    await client.post("/api/v1/users/lock", headers=headers)
 
     # второй раз - свободных нет
-    resp = await client.post("/api/v1/users/lock")
+    resp = await client.post("/api/v1/users/lock", headers=headers)
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_free_users(client, user_data):
-    await client.post("/api/v1/users", json=user_data)
-    await client.post("/api/v1/users/lock")
+    headers = await get_auth_headers(client)
+    await client.post("/api/v1/users", json=user_data, headers=headers)
+    await client.post("/api/v1/users/lock", headers=headers)
 
-    resp = await client.post("/api/v1/users/free")
+    resp = await client.post("/api/v1/users/free", headers=headers)
     assert resp.status_code == 200
 
     # после free юзер снова доступен
-    resp = await client.post("/api/v1/users/lock")
+    resp = await client.post("/api/v1/users/lock", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["locktime"] is not None
 
 
 @pytest.mark.asyncio
 async def test_create_duplicate_user(client, user_data):
-    await client.post("/api/v1/users", json=user_data)
-    resp = await client.post("/api/v1/users", json=user_data)
+    headers = await get_auth_headers(client)
+    await client.post("/api/v1/users", json=user_data, headers=headers)
+    resp = await client.post("/api/v1/users", json=user_data, headers=headers)
     assert resp.status_code == 400
     assert resp.json()["detail"] == "login already exists"
 
@@ -106,20 +127,22 @@ async def test_create_duplicate_user(client, user_data):
     ],
 )
 async def test_create_user_invalid_enums(client, user_data, field, value):
+    headers = await get_auth_headers(client)
     payload = dict(user_data)
     payload[field] = value
 
-    resp = await client.post("/api/v1/users", json=payload)
+    resp = await client.post("/api/v1/users", json=payload, headers=headers)
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
 async def test_lock_user_when_previous_lock_expired(client, db_session, user_data):
-    create_resp = await client.post("/api/v1/users", json=user_data)
+    headers = await get_auth_headers(client)
+    create_resp = await client.post("/api/v1/users", json=user_data, headers=headers)
     assert create_resp.status_code == 201
     user_id = UUID(create_resp.json()["id"])
 
-    first_lock = await client.post("/api/v1/users/lock")
+    first_lock = await client.post("/api/v1/users/lock", headers=headers)
     assert first_lock.status_code == 200
 
     expired_at = datetime.now(timezone.utc) - timedelta(seconds=1)
@@ -128,6 +151,25 @@ async def test_lock_user_when_previous_lock_expired(client, db_session, user_dat
     )
     await db_session.commit()
 
-    second_lock = await client.post("/api/v1/users/lock")
+    second_lock = await client.post("/api/v1/users/lock", headers=headers)
     assert second_lock.status_code == 200
     assert UUID(second_lock.json()["id"]) == user_id
+
+
+@pytest.mark.asyncio
+async def test_auth_invalid_credentials(client):
+    resp = await client.post(
+        "/api/v1/auth/token",
+        json={"username": "admin", "password": "wrong-password"},
+    )
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "invalid credentials"
+
+
+@pytest.mark.asyncio
+async def test_users_endpoint_requires_token(client):
+    resp = await client.get("/api/v1/users")
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "missing authorization token"

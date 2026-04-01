@@ -30,6 +30,11 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       USER_LOCK_TTL_SECONDS: 300
+      AUTH_USERNAME: admin
+      AUTH_PASSWORD: admin
+      JWT_SECRET_KEY: vlad-secret-key
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 60
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:

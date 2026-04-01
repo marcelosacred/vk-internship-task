@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     db_user: str = "postgres"
     db_password: str = "postgres"
     user_lock_ttl_seconds: int = 300
+    auth_username: str = "admin"
+    auth_password: str = "admin"
+    jwt_secret_key: str = "vlad-secret-key"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 60
 
     @property
     def db_url(self) -> str:
