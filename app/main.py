@@ -1,22 +1,11 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 
 from app.api.routes import router
-from app.db.database import init_db
-
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    await init_db()
-    yield
 
 
 app = FastAPI(
     title="Bot Farm API",
     description="VK Internship Task",
-    lifespan=lifespan,
 
 )
 

@@ -51,21 +51,38 @@ async def lock_user(db: AsyncSession) -> User:
 	"""
 
 	now = utc_now()
-	result = await db.execute(
-		select(User)
+	lock_until = now + timedelta(seconds=settings.user_lock_ttl_seconds)
+
+	candidate_id_query = (
+		select(User.id)
 		.where(or_(User.locktime.is_(None), User.locktime <= now))
 		.order_by(User.created_at.asc())
 		.limit(1)
 	)
-	user = result.scalar_one_or_none()
 
-	if user is None:
+	if db.bind is not None and db.bind.dialect.name == "postgresql":
+		candidate_id_query = candidate_id_query.with_for_update(skip_locked=True)
+
+	lock_stmt = (
+		update(User)
+		.where(User.id == candidate_id_query.scalar_subquery())
+		.values(locktime=lock_until)
+		.returning(User.id)
+	)
+	result = await db.execute(lock_stmt)
+	locked_user_id = result.scalar_one_or_none()
+
+	if locked_user_id is None:
+		await db.rollback()
 		raise LookupError("no available users")
 
-	user.locktime = now + timedelta(seconds=settings.user_lock_ttl_seconds)
 	await db.commit()
-	await db.refresh(user)
-	return user
+	locked_user = await db.get(User, locked_user_id)
+
+	if locked_user is None:
+		raise LookupError("no available users")
+
+	return locked_user
 
 
 async def free_users(db: AsyncSession) -> int:

@@ -30,6 +30,8 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       USER_LOCK_TTL_SECONDS: 300
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
 
