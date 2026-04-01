@@ -1,4 +1,10 @@
+from datetime import datetime, timedelta, timezone
+from uuid import UUID
+
 import pytest
+from sqlalchemy import update
+
+from app.models.user import User
 
 # тесты для проверки основных сценариев работы API
 # - проверка эндпоинта /health
@@ -47,10 +53,16 @@ async def test_get_users_after_create(client, user_data):
 async def test_lock_user(client, user_data):
     await client.post("/api/v1/users", json=user_data)
 
+    before_lock = datetime.now(timezone.utc).replace(tzinfo=None)
     resp = await client.post("/api/v1/users/lock")
     assert resp.status_code == 200
     data = resp.json()
     assert data["locktime"] is not None
+
+    locktime = datetime.fromisoformat(data["locktime"].replace("Z", "+00:00"))
+    if locktime.tzinfo is not None:
+        locktime = locktime.astimezone(timezone.utc).replace(tzinfo=None)
+    assert locktime > before_lock
 
 
 @pytest.mark.asyncio
@@ -83,3 +95,39 @@ async def test_create_duplicate_user(client, user_data):
     resp = await client.post("/api/v1/users", json=user_data)
     assert resp.status_code == 400
     assert resp.json()["detail"] == "login already exists"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("env", "dev"),
+        ("domain", "beta"),
+    ],
+)
+async def test_create_user_invalid_enums(client, user_data, field, value):
+    payload = dict(user_data)
+    payload[field] = value
+
+    resp = await client.post("/api/v1/users", json=payload)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_lock_user_when_previous_lock_expired(client, db_session, user_data):
+    create_resp = await client.post("/api/v1/users", json=user_data)
+    assert create_resp.status_code == 201
+    user_id = UUID(create_resp.json()["id"])
+
+    first_lock = await client.post("/api/v1/users/lock")
+    assert first_lock.status_code == 200
+
+    expired_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    await db_session.execute(
+        update(User).where(User.id == user_id).values(locktime=expired_at)
+    )
+    await db_session.commit()
+
+    second_lock = await client.post("/api/v1/users/lock")
+    assert second_lock.status_code == 200
+    assert UUID(second_lock.json()["id"]) == user_id
