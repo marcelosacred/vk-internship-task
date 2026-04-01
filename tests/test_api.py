@@ -18,6 +18,9 @@ from app.models.user import User
 # - блокировка юзера, когда предыдущая блокировка уже истекла - долженся заблокировать тот же юзер, что и в первый раз
 # - получение токена с неверными данными - 401
 # - доступ к защищенным эндпоинтам без токена - 401
+# - liveness probe - 200
+# - startup probe - 200
+# - readiness probe - 200
 
 async def get_auth_headers(client):
     resp = await client.post(
@@ -34,6 +37,27 @@ async def test_health(client):
     resp = await client.get("/health")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_liveness_probe(client):
+    resp = await client.get("/health/liveness")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "alive"
+
+
+@pytest.mark.asyncio
+async def test_startup_probe(client):
+    resp = await client.get("/health/startup")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "started"
+
+
+@pytest.mark.asyncio
+async def test_readiness_probe(client):
+    resp = await client.get("/health/readiness")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ready"
 
 
 @pytest.mark.asyncio
