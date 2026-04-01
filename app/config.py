@@ -1,9 +1,11 @@
 import os
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
     db_host: str = "localhost"
     db_port: int = 5432
     db_name: str = "botfarm"
@@ -21,9 +23,6 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://{self.db_user}:{self.db_password}"
             f"@{self.db_host}:{self.db_port}/{self.db_name}"
         )
-
-    class Config:
-        env_file = ".env"
 
 
 settings = Settings()
