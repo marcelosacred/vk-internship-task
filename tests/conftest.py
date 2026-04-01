@@ -1,17 +1,20 @@
+import os
 import pytest
+import pytest_asyncio
 import uuid
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
+TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
+os.environ["DB_URL"] = TEST_DB_URL
+
 from app.main import app
 from app.db.database import get_db
 from app.models.user import Base
 
-TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 
-
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session():
     engine = create_async_engine(TEST_DB_URL)
 
@@ -29,7 +32,7 @@ async def db_session():
     await engine.dispose()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client(db_session):
     async def override_get_db():
         yield db_session
